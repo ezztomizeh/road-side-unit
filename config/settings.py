@@ -22,10 +22,8 @@ SESSION_TTL_SECONDS: int = 1800  # 30 minutes
 CERT_CACHE_TTL_SECONDS: int = 300  # 5 minutes
 
 # Backend API settings
-BACKEND_HOST: str = "localhost"
-BACKEND_PORT: int = 8000
-BACKEND_ENDPOINT: str = "http://{BACKEND_HOST}:{BACKEND_PORT}/api/v1/rsu/verify-certificate/{{certificate_id}}"
-API_KEY: str = "v2v_system_7013d0d99daae08789b2edc6ea231a11"
+BACKEND_BASE_URL = "http://127.0.0.1:8000"
+BACKEND_API_KEY: str = "v2v_system_7013d0d99daae08789b2edc6ea231a11"
 
 # Certificate settings
 CA_CERT_PATH: str = "certs/ca_cert.pem"
