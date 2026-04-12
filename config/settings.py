@@ -27,4 +27,4 @@ BACKEND_API_KEY: str = "v2v_system_7013d0d99daae08789b2edc6ea231a11"
 
 # Certificate settings
 CA_CERT_PATH: str = "certs/ca_cert.pem"
-CA_PRIVATE_KEY_PATH: str = "certs/ca_private_key.pem"
+CA_PRIVATE_KEY_PATH: str = "certs/ca_key.pem"

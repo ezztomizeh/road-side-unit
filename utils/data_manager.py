@@ -1,7 +1,7 @@
 from security.encryption_module import CryptoSession
 from config.settings import MSG_DATA, PROTOCOL_VERSION
 from data.packets import V2VHeader, DataPacket
-from logging.redisLogger import RedisLogger
+from log.redisLogger import RedisLogger
 
 class DataManager:
     def __init__(self, logger: RedisLogger):

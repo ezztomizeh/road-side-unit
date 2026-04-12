@@ -14,7 +14,7 @@ from config.settings import (
     RSU_ID,
     TIMESTAMP_WINDOW_MS
 )
-from logging.redisLogger import RedisLogger
+from log.redisLogger import RedisLogger
 
 class CertificateManager:
     def __init__(self, redis_logger: RedisLogger) -> None:

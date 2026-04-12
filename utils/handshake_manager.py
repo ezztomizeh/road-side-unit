@@ -15,7 +15,7 @@ from config.settings import (
 )
 from data.packets import V2VHeader, ClientHello, ServerHello, SessionConfirm
 from utils.cert_utils import CertificateManager
-from logging.redisLogger import RedisLogger
+from log.redisLogger import RedisLogger
 
 class HandshakeManager:
     def __init__(self, cert_manager: CertificateManager, logger: RedisLogger):
