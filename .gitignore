@@ -3,3 +3,4 @@ __pycache__/
 test.py
 *.crt
 *.key
+test.py
