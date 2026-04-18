@@ -3,7 +3,7 @@ import requests
 import time
 
 from cryptography import x509
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from config.settings import (
@@ -28,14 +28,14 @@ class CertificateManager:
         
         self.ca_public_key = self.ca_cert.public_key()
 
-    def load_pem_certificate(self, pem_data: bytes) -> x509.Certificate:
+    def load_pem_certificate(self, pem_data: bytes):
         return x509.load_pem_x509_certificate(pem_data)
     
     def extract_public_key(self, cert: x509.Certificate):
         return cert.public_key()
     
     def extract_certificate_id(self, cert) -> str:
-        return format(cert.serial_number, 'x')
+        return cert.serial_number
     
     def verify_certificate_signature(self, cert: x509.Certificate) -> bool:
         try:
@@ -73,11 +73,10 @@ class CertificateManager:
             r = int.from_bytes(raw_signature[:32], byteorder='big')
             s = int.from_bytes(raw_signature[32:], byteorder='big')
             der_sig = encode_dss_signature(r, s)
-
             public_key.verify(
                 der_sig,
                 data_hash,
-                ec.ECDSA(hashlib.sha256())
+                ec.ECDSA(hashes.SHA256())
             )
             return True
         except Exception as e:
@@ -104,10 +103,9 @@ class CertificateManager:
 
         cached = self.redis_logger.get_cached_cert_status(cert_id)
         if cached is not None:
-            return cached == "valid"
-        
+            return cached == "regular"
         verify_result = self.verify_certificate_with_backend(cert_id)
-        if not verify_result == "valid":
+        if not verify_result == "regular":
             return False
 
         rev_result = self.check_certificate_revocation(cert_id)

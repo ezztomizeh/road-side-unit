@@ -23,7 +23,11 @@ class DataManager:
         if pkt.msg_type != MSG_DATA:
             raise ValueError(f"Not DATA packet")
         
-        data_pkt = pkt[DataPacket]
+        data_pkt = pkt.payload
+
+        if not isinstance(data_pkt, DataPacket):
+            data_pkt = DataPacket(bytes(data_pkt))
+
         session_id = pkt.session_id
         seq = data_pkt.sequence_number
 
@@ -40,7 +44,7 @@ class DataManager:
         aad = self.build_aad(pkt, seq)
 
         crypto = CryptoSession(session_key, data_pkt.iv)
-        plaintext = crypto.decrypt(data_pkt.ciphertext, data_pkt.tag, aad)
+        plaintext = crypto.decrypt(data_pkt.ciphertext, data_pkt.auth_tag, aad)
 
         self.logger.update_session_sequence(session_id, seq)
         return plaintext

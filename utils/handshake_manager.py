@@ -11,9 +11,10 @@ from config.settings import (
     MSG_CLINET_HELLO,
     MSG_SERVER_HELLO,
     MSG_SESSION_CONFIRM,
-    PROTOCOL_VERSION
+    PROTOCOL_VERSION,
+    MSG_SESSION_ESTABLISHED
 )
-from data.packets import V2VHeader, ClientHello, ServerHello, SessionConfirm
+from data.packets import V2VHeader, ClientHello, ServerHello, SessionConfirm, SessionEstablished
 from utils.cert_utils import CertificateManager
 from log.redisLogger import RedisLogger
 
@@ -26,25 +27,30 @@ class HandshakeManager:
         pkt = V2VHeader(raw_bytes)
         if pkt.msg_type != PROTOCOL_VERSION:
             raise ValueError("Unsupported protocol version")
-        
+        client_hello = pkt.payload
+
+        if not isinstance(client_hello, ClientHello):
+            client_hello = ClientHello(bytes(client_hello))
+
         if pkt.msg_type != MSG_CLINET_HELLO:
             raise ValueError("Not CLIENT_HELLO")
-        return pkt,pkt[ClientHello]
+        
+        return pkt,client_hello
     
     def validate_client_hello(self, raw_bytes: bytes) -> dict:
         _, ch = self.parse_client_hello(raw_bytes)
-
         cert = self.cert_manager.load_pem_certificate(ch.certificate)
 
         if not self.cert_manager.verify_certificate_signature(cert):
             raise ValueError("Invalid certificate signature")
-        
+                 
         if not self.cert_manager.verify_timestamp(ch.timestamp):
             raise ValueError("Certificate expired or not yet valid")
         
         if not self.cert_manager.check_cetificate_status(cert):
             raise ValueError("Certificate revoked")
         
+                
         public_key = self.cert_manager.extract_public_key(cert)
         msg_hash = self.cert_manager.client_hello_hash(ch.client_nonce, ch.timestamp)
 
@@ -68,7 +74,7 @@ class HandshakeManager:
             algorithm=hashes.SHA256(),
             length=32,
             salt=client_nonce + server_nonce,
-            info=b"v2v session key",
+            info=b"V2V session key",
         )
         return hkdf.derive(shared_secret)
     
@@ -96,9 +102,12 @@ class HandshakeManager:
         eph_pub_bytes = self._generate_ephemeral_pub_bytes(eph_pub)
 
         shared_secret = eph_priv.exchange(ec.ECDH(), obu_public_key)
+        print(f"[DEBUG] client nonce: {client_nonce.hex()}")
+        print(f"[DEBUG] server nonce: {server_nonce.hex()}")
         wrapping_key = self._derive_wrapping_key(shared_secret, client_nonce, server_nonce)
+        print(f"[+] Wrapping key derived: {wrapping_key.hex()}")
 
-        session_key = os.urandom(24)
+        session_key = os.urandom(16)
         aesgcm = AESGCM(wrapping_key)
         iv = os.urandom(12)
         encrypted_session_key = iv + aesgcm.encrypt(iv, session_key, None)
@@ -114,10 +123,10 @@ class HandshakeManager:
             handshake_id=handshake_id,
             server_nonce=server_nonce,
             pubkey_length=len(eph_pub_bytes),
-            pbukey=eph_pub_bytes,
+            pubkey=eph_pub_bytes,
             enc_key_length=len(encrypted_session_key),
             enc_key=encrypted_session_key,
-            sig_length=len(signature),
+            signature_length=len(signature),
             signature=signature
         )
 
@@ -139,7 +148,11 @@ class HandshakeManager:
         if pkt.msg_type != MSG_SESSION_CONFIRM:
             raise ValueError("Not SESSION_CONFIRM")
         
-        sc = pkt[SessionConfirm]
+        sc = pkt.payload
+        print(f"[DEBUG] SessionConfirm payload: {sc}")
+        if not isinstance(sc, SessionConfirm):
+            sc = SessionConfirm(bytes(sc))
+        
         pending = self.logger.get_pending_handshake(sc.handshake_id)
         if not pending:
             raise ValueError("No pending handshake for this ID")
@@ -166,3 +179,29 @@ class HandshakeManager:
                                   client_nonce, server_nonce)
         self.logger.delete_pending_handshake(sc.handshake_id)
         return session_id
+    
+    def _sign_session_established(self, session_id: bytes) -> bytes:
+        digest = hashlib.sha256(session_id).digest()
+        der_sig = self.cert_manager.ca_private_key.sign(
+            digest,
+            ec.ECDSA(hashes.SHA256())
+        )
+        r, s = decode_dss_signature(der_sig)
+        return r.to_bytes(32, "big") + s.to_bytes(32, "big")
+    
+
+    def build_session_established(self, session_id: int) -> bytes:
+        signature = self._sign_session_established(session_id.to_bytes(8, "big"))
+        pkt = V2VHeader(
+            version=PROTOCOL_VERSION,
+            msg_type=MSG_SESSION_ESTABLISHED,
+            session_id=session_id,
+            total_length=0
+        ) / SessionEstablished(
+            session_id=session_id,
+            signature_length=len(signature),
+            signature=signature
+        )
+
+        pkt[V2VHeader].total_length = len(bytes(pkt))
+        return bytes(pkt)

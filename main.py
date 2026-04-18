@@ -63,6 +63,8 @@ class ClientThread(threading.Thread):
         session_id = self.handshake_manager.verify_session_confirm(raw_packet)
         self.authenticated = True
         self.session_id = session_id
+        established_bytes = self.handshake_manager.build_session_established(session_id)
+        send_framed_packet(self.client_socket, established_bytes)
         print(f"[+] Secure session established with {self.address}, Session ID: {session_id}")
 
     def handle_data(self, raw_packet: bytes):
