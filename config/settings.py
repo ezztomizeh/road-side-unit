@@ -11,6 +11,7 @@ MSG_CLINET_HELLO: int = 0x01
 MSG_SERVER_HELLO: int = 0x02
 MSG_SESSION_CONFIRM: int = 0x03
 MSG_DATA: int = 0x04
+MSG_SESSION_ESTABLISHED: int = 0x05
 
 # Security settings
 TIMESTAMP_WINDOW_MS: int = 10000  # 10 seconds
