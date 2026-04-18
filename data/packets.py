@@ -17,7 +17,8 @@ class V2VHeader(Packet):
                       {1: "CLIENT_HELLO",
                        2: "SERVER_HELLO",
                        3: "SESSION_CONFIRM",
-                       4: "DATA",}),
+                       4: "DATA",
+                       5: "SESSION_ESTABLISHED"}),
         LongField("session_id", 0),
         IntField("total_length", 0),
     ]
@@ -59,8 +60,16 @@ class DataPacket(Packet):
     name = "DataPacket"
     fields_desc = [
         LongField("sequence_number", 0),
-        IntField("iv", 0),
+        StrFixedLenField("iv", b"\x00"*16, length=16),
         ShortField("data_length", 0),
         StrLenField("ciphertext", b"", length_from=lambda pkt: pkt.data_length),
         StrFixedLenField("auth_tag", b"\x00"*16, length=16),
+        ]
+    
+class SessionEstablished(Packet):
+    name = "SessionEstablished"
+    fields_desc = [
+        LongField("session_id", 0),
+        ShortField("signature_length", 0),
+        StrLenField("signature", b"", length_from=lambda pkt: pkt.signature_length)
         ]
