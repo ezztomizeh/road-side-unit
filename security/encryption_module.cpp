@@ -171,7 +171,9 @@ public:
 
         key[0] = bytes_to_u64(k, 0);
         key[1] = bytes_to_u64(k, 8);
-        key[2] = bytes_to_u64(k, 16);
+        // Derive the third subkey deterministically from the 128-bit session key.
+        // Reading at offset 16 is out-of-bounds for a 16-byte key and causes UB.
+        key[2] = key[0] ^ key[1] ^ 0xA5A5A5A5A5A5A5A5ULL;
 
         base_nonce = {bytes_to_u64(n, 0), bytes_to_u64(n, 8)};
         counter = 0;
