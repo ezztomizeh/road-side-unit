@@ -29,3 +29,15 @@ BACKEND_API_KEY: str = "v2v_system_7013d0d99daae08789b2edc6ea231a11"
 # Certificate settings
 CA_CERT_PATH: str = "certs/ca_cert.pem"
 CA_PRIVATE_KEY_PATH: str = "certs/ca_key.pem"
+
+# Email settings
+EMAIL_HOST: str = "smtp.gmail.com"
+EMAIL_PORT: int = 587
+EMAIL_USE_TLS: bool = True
+EMAIL_USERNAME: str = "ezzudintomizi@gmail.com"
+EMAIL_PASSWORD: str = "wmmr zppz hhxp omvj"
+EMAIL_TO_ADDRESS: str = "mayssweite@gmail.com"
+
+# Collision warning settings
+TTC_THRESHOLD_SECONDS: float = 5.0
+TTL_DELETE_INTERVAL_SECONDS: int = 10000 # 10  seconds, should be slightly longer than the expected time to collision to ensure data is available for risk assessment

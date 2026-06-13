@@ -83,21 +83,32 @@ block128 encrypt_block(block128 in, uint64_t key[3]) {
 }
 
 // ---------------------- GF(2^128) ----------------------
+inline bool get_bit_128(const block128& b, int i) {
+    // i = 0 means MSB of hi, i = 127 means LSB of lo
+    if (i < 64) {
+        return (b.hi >> (63 - i)) & 1ULL;
+    } else {
+        return (b.lo >> (127 - i)) & 1ULL;
+    }
+}
+
 block128 gf_mul(block128 X, block128 Y) {
-    block128 Z = {0,0};
+    block128 Z = {0, 0};
     block128 V = X;
 
     for (int i = 0; i < 128; i++) {
-        if ((Y.hi >> (127 - i)) & 1)
+        if (get_bit_128(Y, i)) {
             Z = Z ^ V;
+        }
 
-        bool lsb = V.lo & 1;
+        bool lsb = V.lo & 1ULL;
 
         V.lo = (V.lo >> 1) | (V.hi << 63);
         V.hi >>= 1;
 
-        if (lsb)
+        if (lsb) {
             V.hi ^= 0xE100000000000000ULL;
+        }
     }
 
     return Z;

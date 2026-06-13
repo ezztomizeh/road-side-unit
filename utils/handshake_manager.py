@@ -1,10 +1,11 @@
 import hashlib
 import hmac
 import os
+import time
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
+from cryptography.hazmat.primitives.asymmetric.utils import Prehashed, decode_dss_signature, encode_dss_signature
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from config.settings import (
@@ -25,7 +26,7 @@ class HandshakeManager:
 
     def parse_client_hello(self, raw_bytes: bytes):
         pkt = V2VHeader(raw_bytes)
-        if pkt.msg_type != PROTOCOL_VERSION:
+        if pkt.version != PROTOCOL_VERSION:
             raise ValueError("Unsupported protocol version")
         client_hello = pkt.payload
 
@@ -38,6 +39,7 @@ class HandshakeManager:
         return pkt,client_hello
     
     def validate_client_hello(self, raw_bytes: bytes) -> dict:
+        start_time = time.perf_counter()
         _, ch = self.parse_client_hello(raw_bytes)
         cert = self.cert_manager.load_pem_certificate(ch.certificate)
 
@@ -50,6 +52,9 @@ class HandshakeManager:
         if not self.cert_manager.check_cetificate_status(cert):
             raise ValueError("Certificate revoked")
         
+        cert_id = self.cert_manager.extract_certificate_id(cert)
+        status = self.cert_manager.verify_certificate_with_backend(cert_id)
+        
                 
         public_key = self.cert_manager.extract_public_key(cert)
         msg_hash = self.cert_manager.client_hello_hash(ch.client_nonce, ch.timestamp)
@@ -57,11 +62,16 @@ class HandshakeManager:
         if not self.cert_manager.verify_raw_ecdsa_signature(public_key, msg_hash, ch.signature):
             raise ValueError("Invalid client proof-of-possession signature")
         
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
+        print(f"[TESTING] Time to validate CLIENT_HELLO: {execution_time*1000:.4f} ms")
+        
         return {
             "cert": cert,
             "certificate_id": self.cert_manager.extract_certificate_id(cert),
             "obu_public_key": public_key,
-            "client_nonce": ch.client_nonce
+            "client_nonce": ch.client_nonce,
+            "status": status
         }
     
     def _generate_ephemeral_pub_bytes(self, public_key) -> bytes:
@@ -85,7 +95,7 @@ class HandshakeManager:
                                 eph_pub_bytes).digest()
         der_sig = self.cert_manager.ca_private_key.sign(
             digest,
-            ec.ECDSA(hashes.SHA256())
+            ec.ECDSA(Prehashed(hashes.SHA256()))
         )
         r, s = decode_dss_signature(der_sig)
         return r.to_bytes(32, "big") + s.to_bytes(32, "big")
@@ -102,10 +112,7 @@ class HandshakeManager:
         eph_pub_bytes = self._generate_ephemeral_pub_bytes(eph_pub)
 
         shared_secret = eph_priv.exchange(ec.ECDH(), obu_public_key)
-        print(f"[DEBUG] client nonce: {client_nonce.hex()}")
-        print(f"[DEBUG] server nonce: {server_nonce.hex()}")
         wrapping_key = self._derive_wrapping_key(shared_secret, client_nonce, server_nonce)
-        print(f"[+] Wrapping key derived: {wrapping_key.hex()}")
 
         session_key = os.urandom(16)
         aesgcm = AESGCM(wrapping_key)
@@ -149,7 +156,6 @@ class HandshakeManager:
             raise ValueError("Not SESSION_CONFIRM")
         
         sc = pkt.payload
-        print(f"[DEBUG] SessionConfirm payload: {sc}")
         if not isinstance(sc, SessionConfirm):
             sc = SessionConfirm(bytes(sc))
         
@@ -184,7 +190,7 @@ class HandshakeManager:
         digest = hashlib.sha256(session_id).digest()
         der_sig = self.cert_manager.ca_private_key.sign(
             digest,
-            ec.ECDSA(hashes.SHA256())
+            ec.ECDSA(Prehashed(hashes.SHA256()))
         )
         r, s = decode_dss_signature(der_sig)
         return r.to_bytes(32, "big") + s.to_bytes(32, "big")
